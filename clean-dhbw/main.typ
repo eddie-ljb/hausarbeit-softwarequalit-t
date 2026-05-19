@@ -1,6 +1,14 @@
 #import "@preview/clean-dhbw:0.4.0": *
 #import "glossary.typ": glossary-entries
 
+#let clr-header = rgb("#1a1a2e")
+#let clr-row-odd = rgb("#f5f5f5")
+#let clr-row-even = white
+#let clr-high = rgb("#fde8e8")
+#let clr-mid = rgb("#fef9e7")
+#let clr-low = rgb("#eafaf1")
+#let clr-none = white
+
 #show: clean-dhbw.with(
   title: "Softwarequalität",
   authors: (
@@ -155,21 +163,376 @@ sind präzise darauf ausgelegt, Modularität und Modifiability zu maximieren.
 Die Clean Architecture liefert damit nicht nur ein Designprinzip, sondern
 zugleich den Maßstab, an dem ihre eigene Umsetzung gemessen werden kann.
 
-= Architektur des Projekts
+= Betrachtung des Projekts
 
-== Schichtenstruktur
+Dieses Kapitel beschreibt zunächst den Gesamtaufbau des Sportwettbewerbs-
+Managementtools in Bezug auf seine Architektur und bewertet anschließend, inwiefern
+die Clean Architecture im Projekt umgesetzt wurde. Dabei werden sowohl
+gelungene Aspekte als auch strukturelle Abweichungen vom Architekturanspruch
+herausgearbeitet, die als Grundlage für die Analyse in Kapitel 4 dienen.
 
-== Stärken der Umsetzung
+== Architekturaufbau des Projekts
 
-== Der kritische Befund
+Das Backend des Projekts ist als Maven-Multi-Modul-Projekt organisiert und
+folgt dem in Kapitel 2 beschriebenen Schichtenmodell der Clean Architecture.
+Die vier Module sind entsprechend ihrer Schicht benannt und nummeriert:
+`3_domain`, `2_application`, `1_adapter` und `0_plugins`. Diese Nummerierung
+spiegelt die Abhängigkeitsrichtung wider: Ein Modul mit niedrigerer Nummer
+darf nur von Modulen mit höherer Nummer abhängig sein, nicht umgekehrt.
+Die Modulstruktur selbst entspricht damit der Empfehlung von Briem, Schichten
+als separate Projekte umzusetzen, sodass der Compiler unzulässige
+Abhängigkeiten in die falsche Richtung verhindert @briem[S.~44].
+
+Die *Domain-Schicht* (`3_domain`) enthält die zentralen Geschäftsobjekte
+des Systems: `Competition`, `Match`, `Standings`, `Team`, `Person` und
+ihre Subtypen (`Athlete`, `Coach`, `Official`, `Visitor`), `Ticket` sowie
+`Siteplan`. Zu jedem dieser Aggregate existiert ein Repository-Interface,
+das in der Domain-Schicht definiert ist — etwa `CompetitionRepository` oder
+`TicketRepository`. Die Domain-Schicht enthält keinerlei Framework-Imports;
+insbesondere sind keine Spring-Annotierungen vorhanden. Dieses Vorgehen
+entspricht der Grundregel der Clean Architecture, wonach der Anwendungs- und
+Domaincode frei von Abhängigkeiten gegenüber Frameworks sein soll
+@briem[S.~16].
+
+Die *Application-Schicht* (`2_application`) enthält für jeden fachlichen
+Bereich einen Service sowie die zugehörigen UseCase-Interfaces. Für den
+Bereich Wettkämpfe sind dies beispielsweise `CreateCompetitionUseCase` und
+`GetStandingsUseCase`, die von `CompetitionService` implementiert werden.
+Alle UseCases kommunizieren ausschließlich über Command-Objekte und DTOs mit
+den äußeren Schichten — eine Entkopplung, die verhindert, dass
+Domain-Objekte direkt nach außen exponiert werden.
+
+Die *Adapter-Schicht* (`1_adapter`) enthält Mapper-Klassen, die zwischen
+den internen Domain-Objekten und den Dateitransfer-Objekten (DTOs) der
+Persistenzschicht übersetzen. So wandelt etwa `CompetitionFileMapper`
+ein `Competition`-Domain-Objekt in ein `CompetitionFileDto` um und
+umgekehrt. Diese Schicht hat keine Kenntnis von HTTP, REST oder Spring.
+
+Die *Plugin-Schicht* (`0_plugins`) gliedert sich in zwei Teilmodule:
+`plugin_rest` enthält die REST-Controller auf Basis von Spring Boot,
+`plugin_io` die dateibasierten Repository-Implementierungen. Die
+Repository-Implementierungen — etwa `FileCompetitionRepository` —
+implementieren jeweils das in der Domain-Schicht definierte
+Repository-Interface und erfüllen damit das Dependency-Inversion-Prinzip
+korrekt: Die innere Schicht definiert die Schnittstelle, die äußere Schicht
+implementiert sie @briem[S.~16].
+
+== Korrekte Umsetzung im Überblick
+
+In weiten Teilen des Projekts ist die Clean Architecture konsequent umgesetzt.
+Die UseCase-Interfaces und ihre Implementierungen in der Application-Schicht
+sind vollständig vorhanden. Der `PersonController` etwa nutzt für alle vier
+Schreiboperationen (Anlegen von Athlete, Coach, Official, Visitor) ausschließlich
+die entsprechenden UseCase-Interfaces — `CreateAthleteUseCase`,
+`CreateCoachUseCase`, `CreateOfficialUseCase` und `CreateVisitorUseCase` —
+ohne direkt auf ein Repository zuzugreifen. Gleiches gilt für den
+`TicketController`, dessen beide schreibenden Endpunkte (`/create` und
+`/sellTicket`) vollständig über `CreateTicketUseCase` und `SellTicketUseCase`
+abgewickelt werden. Dieses Vorgehen entspricht der in Kapitel 2 beschriebenen
+Rolle der Plugin-Schicht: Sie enthält hauptsächlich Delegationscode, der
+Aufrufe an die inneren Schichten weiterleitet @briem[S.~37].
+
+Auch die Domain-Schicht selbst zeigt qualitativ hochwertige Umsetzungsbeispiele.
+Die Klasse `SportResultComparator` nutzt das Strategy-Pattern über das Interface
+`ScoringStrategy`, sodass neue Sportarten hinzugefügt werden können, ohne
+bestehenden Code zu verändern — ein direktes Anwendungsbeispiel des
+Open-Closed-Prinzips.
+
+== Strukturelle Abweichungen
+
+Neben diesen gelungenen Aspekten finden sich im Projekt zwei strukturelle
+Abweichungen von der Clean Architecture, die für die Bewertung nach ISO/IEC 25010
+relevant sind.
+
+=== Direkter Repository-Zugriff in der Plugin-Schicht
+
+Der `CompetitionController` hält als Instanzvariable nicht nur die
+UseCase-Interfaces `CreateCompetitionUseCase` und `GetStandingsUseCase`,
+sondern zusätzlich ein direktes Referenz auf `CompetitionRepository` — ein
+Interface, das in der Domain-Schicht definiert ist. Von den sieben Endpunkten
+des Controllers umgehen fünf die Application-Schicht vollständig und rufen das
+Repository direkt auf:
+
+- `GET`-Methode `/getById` 
+→ `competitionRepository.findCompetitionById(id)`
+
+- `GET`-Methode `/getMatchesByCompetitionId` 
+→ `competitionRepository.getAllMatchesFromCompetitionId(id)`
+
+- `GET`-Methode `/getMatchById` 
+→ `competitionRepository.findMatchById(id)`
+
+- `GET`-Methode `/getCompetitionByCompetitionName` 
+→ `competitionRepository.getCompetitionByName(name)`
+
+- `POST`-Methode `/registerMatchResults` 
+→ `competitionRepository.registerResultsForMatchByID(...)`
+
+Lediglich zwei Endpunkte — `GET /getStandingsFromCompetition` und
+`POST /create` — nutzen den vorgesehenen Weg über die UseCase-Interfaces.
+Die Plugin-Schicht überspringt damit für den Großteil ihrer Operationen die
+Application-Schicht und greift direkt auf die Domain-Schicht zu. Dies ist
+eine Verletzung der Dependency Rule, die vorschreibt, dass die Plugin-Schicht
+grundsätzlich nur auf die Adapter-Schicht zugreift @briem[S.~37]. Das Muster
+des direkten Repository-Zugriffs findet sich darüber hinaus auch im
+`PersonController` (ein Lesezugriff via `PersonRepository`) und im
+`TicketController` (ein Lesezugriff via `TicketRepository`), ist jedoch im
+`CompetitionController` am ausgeprägtesten.
+
+=== Framework-Abhängigkeit in der Application-Schicht
+
+Eine zweite Abweichung betrifft die Abhängigkeitsstruktur auf Modul-Ebene.
+Die `pom.xml` der Application-Schicht deklariert `spring-boot-starter-web`
+als Compile-Zeit-Abhängigkeit — nicht als Test-Abhängigkeit. Dies hat zur
+Folge, dass alle fünf Service-Klassen der Application-Schicht
+(`CompetitionService`, `PersonService`, `TicketService`, `SiteplanService`,
+`ContenderService`) die Spring-Annotation `@Service` tragen. Diese Annotation
+ist ein Framework-spezifisches Konstrukt der Plugin-Schicht und hat in einer
+schichtarchitektonisch sauber getrennten Application-Schicht nichts verloren.
+Laut Briem sind Frameworks Details, die als Plugins an den Rand der Anwendung
+gehören — Abhängigkeiten vom Anwendungscode in das Framework zeigen in die
+falsche Richtung @briem[S.~58--59]. Die Application-Schicht kann aufgrund
+dieser Compile-Abhängigkeit nicht mehr unabhängig von Spring kompiliert oder
+getestet werden, was einem der Grundziele der Clean Architecture widerspricht
+@briem[S.~16].
 
 = Analyse und Bewertung
 
-== Warum ist das kritisch?
+Dieses Kapitel bewertet die in Kapitel 3 beschriebenen Abweichungen anhand
+der in Kapitel 2 eingeführten Kriterien. Für jeden der beiden Befunde wird
+zunächst erläutert, warum die Abweichung qualitativ problematisch ist, und
+anschließend werden die konkreten Auswirkungen auf die Teilmerkmale Modularity
+und Modifiability nach ISO/IEC 25010 bewertet.
 
-== Bewertung mit FMEA/RPZ
+== Bewertung: Direkter Repository-Zugriff
 
-== Widerspruch zur eigenen Dokumentation
+=== Fehlende Kapselung der Anwendungslogik
+
+Der `CompetitionController` ruft für fünf seiner sieben Endpunkte direkt
+Methoden des `CompetitionRepository` auf, anstatt den vorgesehenen Weg über
+die Application-Schicht zu nehmen. Auf den ersten Blick erscheint dies als
+pragmatische Abkürzung: Das Repository-Interface existiert bereits in der
+Domain-Schicht, es ist korrekt per Dependency Inversion entkoppelt, und die
+Abfragen sind einfach genug, dass ein eigener UseCase unverhältnismäßig
+erscheinen mag.
+
+Diese Einschätzung greift jedoch zu kurz. Die Application-Schicht dient nicht
+allein als Durchleitungsebene, sondern als zentraler Ort für
+anwendungsspezifische Geschäftslogik @briem[S.~23]. Dies zeigt sich deutlich
+am Vergleich der beiden Endpunkte, die den vorgesehenen Weg nutzen: Der Aufruf
+von `createCompetitionUseCase.create(command)` löst in `CompetitionService`
+eine Kette fachlicher Schritte aus — Auflösung der Team- und Official-IDs zu
+vollständigen Objekten, automatische Spielplanerstellung mittels
+`competition.scheduleMatches()` sowie anschließende Persistierung. Diese
+Logik wäre beim direkten Repository-Zugriff entweder im Controller
+dupliziert, in das Repository verschoben oder schlicht nicht vorhanden. Das
+Plugin enthält damit Anwendungslogik — genau das, was Briem als
+grundlegenden Verstoß gegen die Rolle der Plugin-Schicht beschreibt
+@briem[S.~37--38].
+
+=== Auswirkung auf Modularity
+
+Modularity nach ISO/IEC 25010 beschreibt, inwieweit Komponenten unabhängig
+voneinander verändert werden können @iso25010[Abschn.~4.2.7.1]. Im
+vorliegenden Fall hängt der `CompetitionController` durch den direkten Import
+von `CompetitionRepository` und mehreren Domain-Klassen (`Competition`,
+`Match`, `Standings`) unmittelbar von der Domain-Schicht ab. Die Plugin-
+und die Domain-Schicht sind damit direkt aneinander gekoppelt, obwohl die
+Application-Schicht als Entkopplungsebene zwischen ihnen vorgesehen ist.
+
+Eine Änderung an der Signatur einer Repository-Methode — etwa das Umbenennen
+von `findCompetitionById` oder das Anpassen des Rückgabetyps — würde damit
+nicht nur die Application-Schicht betreffen, sondern unmittelbar auch den
+Controller in der Plugin-Schicht. Die erhöhte Kopplung zwischen zwei
+eigentlich unabhängigen Schichten widerspricht direkt dem Ziel der
+Modularität, wonach Änderungen an einer Komponente möglichst geringe
+Auswirkungen auf andere haben sollen @iso25010[Abschn.~4.2.7.1].
+
+Besonders deutlich wird dies im Vergleich mit dem `PersonController`, der
+ausschließlich UseCase-Interfaces verwendet: Eine Änderung an
+`PersonRepository` hätte dort keine direkte Auswirkung auf den Controller,
+da dieser das Repository nicht kennt. Im `CompetitionController` ist dasselbe
+Schutzniveau für fünf von sieben Endpunkten nicht gegeben.
+
+=== Auswirkung auf Modifiability
+
+Modifiability beschreibt, ob das System effektiv verändert werden kann, ohne
+unbeabsichtigte Seiteneffekte zu erzeugen @iso25010[Abschn.~4.2.7.3]. Hier
+treten zwei konkrete Probleme auf.
+
+Erstens fehlt ein zentraler Ort für fachliche Erweiterungen. Soll künftig
+beispielsweise beim Abrufen eines Wettkampfs per `getById` eine
+Berechtigungsprüfung oder eine Logging-Funktion eingebaut werden, müsste dies
+direkt im Controller implementiert werden — oder es müsste nachträglich ein
+UseCase eingeführt werden, was einen Umbau des Controllers erfordert. In einem
+System, das die Clean Architecture konsequent umsetzt, wäre dieser Eingriff
+auf die Application-Schicht beschränkt; der Controller bliebe unverändert.
+
+Zweitens besteht eine Inkonsistenz innerhalb des `CompetitionController`
+selbst: Zwei Endpunkte laufen korrekt über UseCase-Interfaces, fünf nicht.
+Diese Inkonsistenz erhöht die kognitive Last bei Weiterentwicklungen, da
+Entwicklerinnen und Entwickler für jeden Endpunkt individuell prüfen müssen,
+welchem Muster er folgt. Ein einheitliches Muster — alle Endpunkte über
+UseCases — wäre einfacher zu verstehen, zu erweitern und zu testen und
+entspräche dem Grundsatz, dass die Plugin-Schicht ausschließlich
+Delegationscode enthalten soll @briem[S.~37].
+
+== Bewertung: Framework-Abhängigkeit in der Application-Schicht
+
+=== Spring als Compile-Abhängigkeit
+
+Die Application-Schicht deklariert `spring-boot-starter-web` in ihrer
+`pom.xml` als Compile-Zeit-Abhängigkeit. Damit kennt und benötigt die
+Application-Schicht Spring, um kompiliert werden zu können. Dies ist eine
+strukturelle Verletzung der Dependency Rule: Abhängigkeiten sollen von außen
+nach innen zeigen — von der Plugin-Schicht in die Application-Schicht, nicht
+umgekehrt @briem[S.~11]. Briem hält explizit fest, dass Frameworks Details
+sind, die als Plugins an den Rand der Anwendung gehören, und dass
+Abhängigkeiten vom Anwendungscode in das Framework in die falsche Richtung
+zeigen @briem[S.~58--59].
+
+Die praktische Konsequenz ist, dass die Application-Schicht nicht mehr
+unabhängig von Spring gebaut oder betrieben werden kann — ein Ziel, das die
+Clean Architecture ausdrücklich anstrebt @briem[S.~16]. Zwar handelt es sich
+bei `@Service` um eine wenig invasive Annotation, doch die Compile-Abhängigkeit
+geht über die Annotation hinaus: Das gesamte `spring-boot-starter-web`-Paket
+steht der Application-Schicht zur Verfügung, was das Risiko erhöht, dass
+künftige Entwicklungen weitere Spring-spezifische Konstrukte in die
+Application-Schicht einbringen.
+
+=== Auswirkung auf Modularity und Modifiability
+
+Die Spring-Abhängigkeit in der Application-Schicht beeinträchtigt beide
+Qualitätskriterien. Hinsichtlich Modularity ist die Application-Schicht nicht
+mehr unabhängig von der Plugin-Technologie: Ein Wechsel des Web-Frameworks
+— der laut Clean Architecture ausschließlich die Plugin-Schicht betreffen
+sollte — würde nun auch die Application-Schicht berühren. Die Module sind
+damit stärker aneinander gebunden als die Architektur vorsieht.
+
+Hinsichtlich Modifiability erschwert die Abhängigkeit das isolierte Testen
+der Application-Schicht: Komponententests der Services erfordern den
+Spring-Kontext oder zumindest Spring-Mocking-Infrastruktur, obwohl die
+fachliche Logik dieser Schicht von Spring vollständig unabhängig sein sollte.
+Dies erhöht den Aufwand für Änderungen, da jede Anpassung eines Services auch
+unter dem Gesichtspunkt der Spring-Kompatibilität geprüft werden muss.
+
+== Risikobewertung mittels FMEA
+
+Um die identifizierten Befunde strukturiert zu priorisieren und ihren
+Handlungsbedarf zu quantifizieren, wird eine Fehler-Möglichkeits- und
+Einfluss-Analyse (FMEA) durchgeführt. Die FMEA ist eine etablierte Methode
+des Qualitätsmanagements zur systematischen Identifikation und Bewertung von
+Fehlerquellen @kube[S.~10]. Jede Fehlerquelle wird anhand dreier Faktoren
+bewertet, die jeweils einen Wert zwischen 1 und 10 annehmen:
+
+- *A* — Auftrittswahrscheinlichkeit: Wie häufig bzw. mit welcher
+  Wahrscheinlichkeit tritt der Fehler auf?
+- *B* — Bedeutung der Fehlerfolge: Wie schwerwiegend sind die Auswirkungen
+  auf das System?
+- *E* — Entdeckungswahrscheinlichkeit: Wie wahrscheinlich ist es, dass der
+  Fehler im Entwicklungsprozess entdeckt wird? (1 = zwangsläufig entdeckt,
+  10 = kaum entdeckbar)
+
+Die Risikoprioritätszahl (RPZ) ergibt sich als Produkt der drei Faktoren:
+$"RPZ" = A times B times E$. Werte ab 100 gelten als hohes Risiko mit
+dringendem Handlungsbedarf @kube[S.~10].
+
+#figure(
+  table(
+    columns: (2.5em, 1fr, 2em, 2em, 2em, 3em),
+    align: (center, left, center, center, center, center),
+    inset: (x: 8pt, y: 6pt),
+    stroke: none,
+    fill: (col, row) => if row == 0 { clr-header } else if calc.odd(row) { clr-row-odd } else { clr-row-even },
+
+    // Header
+    table.cell(text(fill: white, weight: "bold")[ID]),
+    table.cell(text(fill: white, weight: "bold")[Fehlerquelle]),
+    table.cell(text(fill: white, weight: "bold")[A]),
+    table.cell(text(fill: white, weight: "bold")[B]),
+    table.cell(text(fill: white, weight: "bold")[E]),
+    table.cell(text(fill: white, weight: "bold")[RPZ]),
+
+    // F1
+    table.cell(align: center)[F1],
+    [Direkter Repository-Zugriff im `CompetitionController` \ (5 von 7 Endpunkten umgehen die Application-Schicht)],
+    [10], [7], [8],
+    table.cell(fill: clr-high)[*560*],
+
+    // F2
+    table.cell(align: center)[F2],
+    [Spring-Compile-Abhängigkeit in der Application-Schicht \ (`spring-boot-starter-web` in `pom.xml`)],
+    [10], [5], [4],
+    table.cell(fill: clr-high)[*200*],
+  ),
+  caption: [FMEA-Analyse der identifizierten Architekturverletzungen],
+) <fmea>
+
+#figure(
+  table(
+    columns: (5em, 4em, 5em, 1fr),
+    align: (center, center, left, left),
+    inset: (x: 8pt, y: 6pt),
+    stroke: none,
+    fill: (col, row) => if row == 0 { clr-header } else if row == 1 { clr-none } else if row == 2 { clr-low } else if row == 3 { clr-mid } else { clr-high },
+
+    // Header
+    table.cell(text(fill: white, weight: "bold")[RPZ]),
+    table.cell(text(fill: white, weight: "bold")[Risiko]),
+    table.cell(text(fill: white, weight: "bold")[Handlungsbedarf]),
+    table.cell(text(fill: white, weight: "bold")[Maßnahmen]),
+
+    // Zeilen
+    [$"RPZ" = 1$],       [keins],  [keiner],             [keine],
+    [$2 – 50$],          [gering], [nicht zwingend],     [können formuliert und umgesetzt werden],
+    [$50 – 100$],        [mittel], [besteht],            [sollten formuliert und umgesetzt werden],
+    [$100 – 1000$],      [*hoch*], [*dringend*],         [müssen formuliert und umgesetzt werden],
+  ),
+  caption: [RPZ-Wertebereiche und Fehlerrisikoklassen (nach @kube[S.~10])],
+) <rpz>
+
+Beide Fehlerquellen fallen mit einer RPZ von 560 (F1) und 200 (F2) in die
+Risikoklasse *hoch*, was dringendem Handlungsbedarf entspricht. Die
+Bewertung im Einzelnen:
+
+F1 erhält A = 10, da die Verletzung bereits vollständig im Code vorhanden und
+damit mit Sicherheit eingetreten ist. B = 7 spiegelt wider, dass der direkte
+Repository-Zugriff die Modularity und Modifiability des Systems substanziell
+beeinträchtigt: Änderungen an der Domain-Schicht schlagen unmittelbar auf die
+Plugin-Schicht durch, und fachliche Erweiterungslogik hat keinen definierten
+Ort. E = 8 ergibt sich daraus, dass die Verletzung im normalen
+Entwicklungsbetrieb kaum auffällt — der Code kompiliert fehlerfrei, und
+funktionale Tests würden keine Abweichung zeigen. Nur eine gezielte
+Architekturprüfung oder ein Code-Review mit Kenntnis der Dependency Rule
+würde den Fehler aufdecken.
+
+F2 erhält ebenfalls A = 10, da die Spring-Abhängigkeit in der `pom.xml`
+strukturell verankert ist. B = 5 reflektiert, dass die unmittelbaren
+funktionalen Auswirkungen begrenzter sind als bei F1 — das System läuft
+korrekt, solange Spring verwendet wird. Die Beeinträchtigung betrifft vor
+allem die langfristige Austauschbarkeit des Frameworks und die Testbarkeit
+der Application-Schicht ohne Spring-Kontext. E = 4 ist niedriger als bei F1,
+da die Abhängigkeit in der `pom.xml` explizit sichtbar ist und bei einem
+gezielten Blick auf die Modulkonfiguration auffällt.
+
+== Gesamtbewertung
+
+Beide Befunde sind keine isolierten Einzelfehler, sondern Ausdruck desselben
+Grundproblems: Die Dependency Rule wurde an der Grenze zwischen Plugin-Schicht
+und Application-Schicht nicht konsequent eingehalten. Im Kern der Anwendung
+— Domain- und Adapter-Schicht — ist die Architektur vorbildlich umgesetzt.
+An der äußersten Grenze, wo die technische Infrastruktur auf die fachliche
+Logik trifft, entstehen jedoch Kurzschlussverbindungen, die die mit der Clean
+Architecture angestrebten Qualitätsziele Modularity und Modifiability
+untergraben.
+
+Die FMEA-Analyse bestätigt diesen Befund quantitativ: Beide Fehlerquellen
+liegen mit RPZ-Werten von 560 und 200 deutlich im Bereich hohen Risikos und
+erfordern damit nach @kube[S.~10] das Formulieren und Umsetzen konkreter
+Maßnahmen. F1 ist dabei als dringlicher einzustufen, da die Auswirkungen auf
+Modularity und Modifiability breiter und schwerer zu kontrollieren sind.
+Die entsprechenden Optimierungsmaßnahmen werden in Kapitel 5 erarbeitet.
+
 
 = Optimierungsmaßnahmen
 

@@ -536,10 +536,174 @@ Die entsprechenden Optimierungsmaßnahmen werden in Kapitel 5 erarbeitet.
 
 = Optimierungsmaßnahmen
 
-== Repository-Zugriffe in Controller eliminieren 
+Ausgehend von der FMEA-Analyse in Kapitel 4 werden in diesem Kapitel konkrete
+Maßnahmen zur Behebung beider Befunde erarbeitet. Die Reihenfolge orientiert
+sich an der RPZ: F1 (direkter Repository-Zugriff, RPZ 560) wird vor F2
+(Spring-Abhängigkeit, RPZ 200) behandelt. Für jede Maßnahme wird beschrieben,
+was konkret zu ändern ist, wie die Umsetzung aussieht und welche Auswirkung
+sie auf die Qualitätskriterien Modularity und Modifiability hat. Die
+Umsetzung folgt dem PDCA-Kreislauf (Plan–Do–Check–Act) als iterativem
+Qualitätsverbesserungsprozess @kube[S.~5].
 
-== Service-Annotation verschieben
+== Maßnahme 1: UseCase-Interfaces für alle Controller-Endpunkte (F1)
 
-== Erwartete Auswirkungen im PDCA-Rahmen
+=== Beschreibung
 
-= Fazit 
+Für jeden Endpunkt des `CompetitionController`, der derzeit direkt auf
+`CompetitionRepository` zugreift, wird ein eigenes UseCase-Interface in der
+Application-Schicht eingeführt. Konkret betrifft dies die fünf folgenden
+Endpunkte, für die jeweils ein Interface und eine entsprechende
+Implementierung im `CompetitionService` ergänzt werden:
+
+- `GET /getById` → `GetCompetitionByIdUseCase`
+- `GET /getMatchesByCompetitionId` → `GetMatchesByCompetitionUseCase`
+- `GET /getMatchById` → `GetMatchByIdUseCase`
+- `GET /getCompetitionByCompetitionName` → `GetCompetitionByNameUseCase`
+- `POST /registerMatchResults` → `RegisterMatchResultsUseCase`
+
+Der `CompetitionController` wird anschließend so umgebaut, dass er
+ausschließlich diese UseCase-Interfaces als Abhängigkeiten hält. Der direkte
+Import von `CompetitionRepository` sowie aller Domain-Klassen
+(`Competition`, `Match`, `Standings`) wird aus der Controller-Klasse
+entfernt. Stattdessen kommuniziert der Controller ausschließlich über
+Command-Objekte und DTOs mit der Application-Schicht — analog zur bereits
+korrekten Umsetzung im `PersonController`.
+
+=== Umsetzung im PDCA
+
+*Plan:* Die neuen UseCase-Interfaces werden spezifiziert. Jedes Interface
+erhält genau eine Methode, die ein Command-Objekt entgegennimmt und ein DTO
+zurückgibt. Damit wird sichergestellt, dass keine Domain-Objekte die
+Schichtgrenze überschreiten.
+
+*Do:* Die Interfaces werden in der Application-Schicht angelegt,
+`CompetitionService` implementiert sie, und der `CompetitionController` wird
+auf die neuen Interfaces umgestellt. Das direkte Repository-Feld wird
+entfernt.
+
+*Check:* Nach der Umstellung darf der `CompetitionController` keine
+`import`-Anweisungen aus dem Paket `de.dhbw.ase.domain` mehr enthalten. Dies
+lässt sich automatisiert prüfen — beispielsweise durch ArchUnit, ein
+Java-Bibliothek für Architekturregeln, die als Test in die CI-Pipeline
+integriert werden kann. Bestehende Unit-Tests der Application-Schicht stellen
+sicher, dass die fachliche Logik der Services unverändert korrekt arbeitet.
+
+*Act:* Das gleiche Muster wird auf `PersonController` (ein verbleibender
+Lesezugriff) und `TicketController` (ein Lesezugriff) übertragen, sodass
+alle Controller im Projekt einheitlich nur über UseCase-Interfaces mit der
+Application-Schicht kommunizieren.
+
+=== Erwartete Auswirkung
+
+Nach Umsetzung dieser Maßnahme sind Plugin-Schicht und Domain-Schicht
+vollständig entkoppelt. Eine Änderung an einer Repository-Methode hat keine
+direkte Auswirkung mehr auf den Controller — sie bleibt auf die
+Application-Schicht beschränkt. Die Modularity des Systems verbessert sich
+messbar: Die Compile-Time-Abhängigkeiten des `CompetitionController` reduzieren
+sich von derzeit zwei Schichten (Application und Domain) auf eine einzige
+(Application). Gleichzeitig steigt die Modifiability, da alle fachlichen
+Erweiterungen — Validierungen, Berechtigungsprüfungen, Logging — einen
+definierten, zentralen Ort in der Application-Schicht erhalten und nicht im
+Controller implementiert oder dupliziert werden müssen. Das inkonsistente
+Muster innerhalb des Controllers wird beseitigt: Alle sieben Endpunkte folgen
+dann demselben Aufbau.
+
+== Maßnahme 2: Spring-Abhängigkeit aus der Application-Schicht entfernen (F2)
+
+=== Beschreibung
+
+Die Abhängigkeit `spring-boot-starter-web` wird aus der `pom.xml` der
+Application-Schicht entfernt. Die `@Service`-Annotierungen auf allen fünf
+Service-Klassen werden ersetzt durch eine Spring-Konfigurationsklasse in der
+Plugin-Schicht, die die Services als Beans registriert.
+
+=== Umsetzung im PDCA
+
+*Plan:* Eine neue Klasse `ApplicationConfig` wird in `plugin_rest` angelegt.
+Sie trägt die Spring-Annotation `@Configuration` und registriert alle
+Service-Instanzen explizit als `@Bean`. Da die Services ihre Abhängigkeiten
+bereits per Konstruktor-Injektion erhalten, ist keine weitere Anpassung der
+Service-Klassen selbst erforderlich.
+
+*Do:* Die `@Service`-Annotierungen werden aus `CompetitionService`,
+`PersonService`, `TicketService`, `SiteplanService` und `ContenderService`
+entfernt. Die `spring-boot-starter-web`-Abhängigkeit wird aus der `pom.xml`
+der Application-Schicht gestrichen. Die neue `ApplicationConfig`-Klasse
+übernimmt die Bean-Registrierung in der Plugin-Schicht.
+
+*Check:* Die Application-Schicht muss nun ohne `spring-boot-starter-web`
+kompilierbar sein. Dies ist durch einen isolierten Maven-Build des Moduls
+`2_application` verifizierbar: `mvn compile -pl 2_application` darf keine
+Fehler produzieren. Alle bestehenden Unit-Tests der Services bleiben
+unverändert lauffähig, da sie ohnehin mit Mockito arbeiten und keinen
+Spring-Kontext benötigen.
+
+*Act:* Zukünftige Services werden von Beginn an ohne Framework-Annotierungen
+entwickelt. Die `ApplicationConfig` dient als einziger Konfigurationspunkt
+für die Bean-Registrierung und wächst mit neuen Services mit.
+
+=== Erwartete Auswirkung
+
+Nach Umsetzung dieser Maßnahme ist die Application-Schicht vollständig
+framework-agnostisch. Ein Wechsel des Web-Frameworks — etwa von Spring Boot
+zu Quarkus oder Micronaut — würde ausschließlich die Plugin-Schicht
+betreffen; die Application-Schicht bliebe unverändert. Dies entspricht
+exakt dem Ziel der Clean Architecture, Technologien als austauschbare
+Randkomponenten zu behandeln @briem[S.~52--53]. Die Modifiability verbessert
+sich, da Framework-Entscheidungen nicht mehr in die fachliche Schicht
+einstrahlen. Die Modularity verbessert sich, da das Modul `2_application`
+keine transitive Abhängigkeit von Spring mehr aufweist und damit wirklich
+unabhängig kompiliert und getestet werden kann.
+
+== Zusammenfassung der erwarteten Verbesserungen
+
+Durch die Umsetzung beider Maßnahmen werden die in der FMEA identifizierten
+Risiken gezielt adressiert. Die Entdeckungswahrscheinlichkeit E für F1
+sinkt nach Einführung von ArchUnit-Tests von 8 auf 2, da Verletzungen der
+Dependency Rule künftig automatisch in der CI-Pipeline erkannt werden. Die
+RPZ von F1 reduziert sich damit von 560 auf 140 — weiterhin im Bereich
+„hoch", aber mit deutlich verbesserter Kontrollierbarkeit. Für F2 sinkt die
+Bedeutung B nach Entfernung der Spring-Abhängigkeit auf 2, da das Risiko
+eines unkontrollierten Framework-Einstroms in die Application-Schicht
+entfällt; die RPZ reduziert sich von 200 auf 80, was der Risikoklasse
+„mittel" entspricht.
+
+Beide Maßnahmen zusammen führen zu einem System, das die in Kapitel 2
+beschriebenen Grundregeln der Clean Architecture konsequent einhält: Innere
+Schichten definieren Interfaces, äußere Schichten implementieren diese, und
+jede Schicht ist unabhängig kompilierbar und testbar @briem[S.~16]. Die
+Qualitätsziele Modularity und Modifiability nach ISO/IEC 25010 werden damit
+nachweisbar verbessert.
+
+
+= Fazit
+
+Diese Arbeit hat das Sportwettbewerbs-Managementtool anhand der Teilmerkmale
+Modularity und Modifiability des ISO/IEC-25010-Standards untersucht und dabei
+die Clean Architecture als konkreten Bewertungsmaßstab herangezogen.
+
+Die Analyse zeigt ein zweigeteiltes Bild. Im Kern — der Domain- und
+Adapter-Schicht — ist die Clean Architecture vorbildlich umgesetzt: Repository-
+Interfaces liegen in der Domain, Implementierungen in der Plugin-Schicht,
+UseCase-Interfaces kapseln die Anwendungslogik. An der Schichtgrenze zwischen
+Plugin- und Application-Schicht hingegen finden sich zwei strukturelle
+Abweichungen: Der `CompetitionController` umgeht die Application-Schicht für
+fünf von sieben Endpunkten durch direkten Repository-Zugriff, und die
+Application-Schicht hält eine Compile-Zeit-Abhängigkeit auf Spring Boot.
+Beide Befunde wurden mittels FMEA als hohes Risiko eingestuft (RPZ 560 und 200)
+und beeinträchtigen nachweislich die Modularity und Modifiability des Systems.
+
+Die erarbeiteten Optimierungsmaßnahmen — Einführung fehlender UseCase-Interfaces
+und Verlagerung der Spring-Konfiguration in die Plugin-Schicht — sind gezielt
+und mit überschaubarem Aufwand umsetzbar. Sie führen nicht nur zur Behebung
+der identifizierten Verletzungen, sondern schaffen durch automatisierte
+Architekturprüfung mittels ArchUnit eine nachhaltige Absicherung gegen
+künftige Regressionen.
+
+Das Fallbeispiel illustriert ein in der Praxis häufiges Muster: Eine
+Architekturentscheidung wird konzeptionell korrekt getroffen, in der
+Umsetzung jedoch unter Zeitdruck an einzelnen Stellen nicht konsequent
+durchgehalten. Genau hier setzt Softwarequalitätsmanagement an — nicht als
+nachträgliche Kritik, sondern als Instrument, um solche Abweichungen
+systematisch zu identifizieren, zu bewerten und dauerhaft zu beheben
+@kube[S.~5].

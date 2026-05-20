@@ -31,15 +31,15 @@
 
 == Projektbeschreibung
 
-Das Sportwettbewerbs-Managementtool ist eine im Rahmen der Vorlesung Advanced Software Engineering an der Dualen Hochschule Baden-Württemberg Karlsruhe entwickelte Anwendung. Sie unterstützt Organisatorinnen und Organisatoren bei der Planung und Durchführung von Sportwettbewerben und bietet Funktionen zur Verwaltung von Personen, Teams, Wettkämpfen, Spielplänen, Lageplänen und Tickets. Das System besteht aus einem Java-Backend auf Basis des Spring-Boot-Frameworks sowie einem React-Frontend und wird über eine REST-API angesteuert.
+Das Sportwettbewerbs-Managementtool ist eine im Rahmen der Vorlesung Advanced Software Engineering an der Dualen Hochschule Baden-Württemberg Karlsruhe entwickelte Anwendung. Sie unterstützt Organisatorinnen und Organisatoren bei der Planung und Durchführung von Sportwettbewerben und bietet Funktionen zur Verwaltung von verschiedenen Arten von Personen, Teams, Wettkämpfen, Spielplänen, Lageplänen und Tickets. Das System besteht aus einem Java-Backend auf Basis des Spring-Boot-Frameworks sowie einem React-Frontend und wird über eine REST-API angesteuert. Die Persistenz läuft dateibasiert.
 
-Ein zentrales Merkmal des Projekts ist die bewusste Entscheidung für eine Clean Architecture. Diese gliedert das System in vier klar voneinander getrennte Schichten: Domain, Application, Adapter und Plugins. Ziel dieser Architektur ist es, die fachliche Kernlogik von technischen Details wie Frameworks oder Persistenzmechanismen zu entkoppeln und langfristige Wartbarkeit und Erweiterbarkeit sicherzustellen.
+Ein zentrales Merkmal des Projekts ist die bewusste Vorgabe, Clean Architecture sowie @DDD zu verwenden. Die Clean Architecture gliedert das System in vier klar voneinander getrennte Schichten: Domain, Application, Adapter und Plugins. Ziel dieser Architektur ist es, die fachliche Kernlogik von technischen Details wie Frameworks oder Persistenzmechanismen zu entkoppeln und langfristige Wartbarkeit und Erweiterbarkeit sicherzustellen.
 
 == Ziel der Arbeit
 
-Im Mittelpunkt dieser Hausarbeit steht die Frage, inwieweit die gewählte Architektur im Sinne des Softwarequalitätsmanagements tatsächlich konsequent umgesetzt wurde. Als Bewertungsmaßstab dienen zwei Teilmerkmale des Qualitätsmerkmals Maintainability aus dem internationalen Standard ISO/IEC 25010: Modularity und Modifiability. Modularity beschreibt, in welchem Maße ein System aus unabhängigen Komponenten besteht, sodass Änderungen an einer Komponente möglichst geringe Auswirkungen auf andere haben. Modifiability beschreibt, wie effektiv das System verändert werden kann, ohne dabei unbeabsichtigte Seiteneffekte in anderen Teilen zu erzeugen.
+Im Mittelpunkt dieser Hausarbeit steht die Frage, inwieweit die gewählte Architektur im Sinne des Softwarequalitätsmanagements tatsächlich konsequent umgesetzt wurde. Als Bewertungsmaßstab dienen zwei Teilmerkmale des Qualitätsmerkmals Maintainability aus dem internationalen Standard @ISO:short 25010: Modularity und Modifiability. Modularity beschreibt, in welchem Maße ein System aus unabhängigen Komponenten besteht, sodass Änderungen an einer Komponente möglichst geringe Auswirkungen auf andere haben. Modifiability hingegen beschreibt, wie effektiv das System verändert werden kann, ohne dabei unbeabsichtigte Seiteneffekte in anderen Teilen der Anwendung zu erzeugen.
 
-Beide Teilmerkmale sind unmittelbar mit dem Anspruch der Clean Architecture verknüpft und eignen sich daher als konkreter, messbarer Maßstab zur Bewertung ihrer Umsetzung. Die Analyse konzentriert sich auf den `CompetitionController` als repräsentatives Fallbeispiel, an dem sich eine systematische Abweichung vom eigenen Architekturanspruch belegen lässt. Daraus werden anschließend begründete Optimierungsmaßnahmen abgeleitet.
+Beide Teilmerkmale sind unmittelbar mit dem Anspruch der Clean Architecture verknüpft und eignen sich daher als konkreter, messbarer Maßstab zur Bewertung ihrer Umsetzung. Die Analyse konzentriert sich auf den `CompetitionController` als repräsentatives Fallbeispiel, an dem sich eine systematische Analyse der vorgebenen Architektur besonders gut eignet. Daraus werden anschließend begründete Optimierungsmaßnahmen abgeleitet.
 
 = Grundlagen
 
@@ -47,41 +47,41 @@ Beide Teilmerkmale sind unmittelbar mit dem Anspruch der Clean Architecture verk
 
 === Motivation und Ziel
 
-Moderne Softwaresysteme unterliegen einem beständigen Wandel. Technologien, Frameworks und Abhängigkeiten veralten, werden ersetzt oder weiterentwickelt — häufig in einem Rhythmus von wenigen Jahren @briem[S.~2]. Eine Architektur, die eng an konkrete Technologien geknüpft ist, altert zwangsläufig mit diesen zusammen und erschwert spätere Anpassungen erheblich.
+Moderne Softwaresysteme unterliegen einem ständigen Wandel. Technologien, Frameworks und Abhängigkeiten veralten, werden ersetzt oder weiterentwickelt — häufig innerhalb weniger Jahre @briem[S.~2]. Eine Architektur, die eng an konkrete Technologien geknüpft ist, altert zwangsläufig mit diesen zusammen und erschwert spätere Anpassungen erheblich.
 
-Die Clean Architecture begegnet diesem Problem durch eine klare strukturelle Trennung von langlebigem und kurzlebigem Code. Ihr zentrales Ziel ist es, einen technologieunabhängigen Kern zu schaffen und alle technischen Details — Datenbanken, Frameworks, Benutzeroberflächen — als austauschbare Randkomponenten zu behandeln @briem[S.~9]. Das angestrebte Ergebnis ist ein System, in dem Technologieentscheidungen spät getroffen oder nachträglich revidiert werden können, ohne den Anwendungskern zu berühren @briem[S.~8]. Robert C. Martin fasst dies so zusammen: Eine gute Architektur maximiert die Anzahl der Entscheidungen, die noch nicht getroffen werden müssen @martin[S.~141].
+Die Clean Architecture begegnet diesem Problem durch eine klare strukturelle Trennung von langlebigem und kurzlebigem Code. Ihr zentrales Ziel ist es, einen technologieunabhängigen Kern zu schaffen und alle technischen Details, wie Datenbanken, Frameworks oder Benutzeroberflächen, als austauschbare Randkomponenten zu behandeln @briem[S.~9]. Das angestrebte Ergebnis ist ein System, in dem Technologieentscheidungen spät getroffen oder nachträglich revidiert werden können, ohne den Anwendungskern zu berühren @briem[S.~8]. Robert C. Martin fasst dies so zusammen: Eine gute Architektur maximiert die Anzahl der Entscheidungen, die noch nicht getroffen werden müssen @martin[S.~141].
 
 === Die Dependency Rule
 
-Das zentrale Prinzip der Clean Architecture ist die Dependency Rule: Abhängigkeiten zwischen Systemteilen dürfen ausschließlich von außen nach innen zeigen @briem[S.~11]. Dabei sind Abhängigkeitspfeile (Compile-Time Dependencies), die zeigen welchen Code eine Klasse direkt referenziert, von Aufrufpfeilen (Runtime Dependencies) zu unterscheiden — letztere können in beide Richtungen verlaufen @briem[S.~12].
+Das zentrale Prinzip der Clean Architecture ist die Dependency Rule. Sie besagt, dass Abhängigkeiten zwischen Systemteilen ausschließlich von außen nach innen zeigen dürfen @briem[S.~11]. Dabei sind Abhängigkeitspfeile (Compile-Time Dependencies), die zeigen welchen Code eine Klasse direkt referenziert, von Aufrufpfeilen (Runtime Dependencies) zu unterscheiden. Aufrufpfeile können in beide Richtungen verlaufen @briem[S.~12].
 
-Die Dependency Rule betrifft ausschließlich die Abhängigkeitspfeile: Innere Schichten dürfen äußere Schichten weder kennen noch referenzieren. Eine Verletzung dieser Regel untergräbt die gesamte Architektur, da Änderungen an der äußeren Schicht dann unmittelbar Auswirkungen auf den eigentlich stabilen Kern haben @martin[S.~203].
+Die Dependency Rule betrifft daher ausschließlich die Abhängigkeitspfeile. Innere Schichten dürfen äußere Schichten weder kennen noch referenzieren. Eine Verletzung dieser Regel missachtet die vorgesehen Architektur, da Änderungen an der äußeren Schicht dann unmittelbar Auswirkungen auf den eigentlich stabilen Kern haben @martin[S.~203].
 
 === Schichtenaufbau
 
 Die Clean Architecture gliedert ein System typischerweise in vier Schichten @briem[S.~14]:
 
-Die *Domain-Schicht* bildet den innersten Kern mit den zentralen Geschäftsobjekten und organisationsweit gültigen Geschäftsregeln @briem[S.~18--19]. Sie ist vollständig immun gegen Änderungen an Infrastrukturdetails wie Anzeige, Transport oder Speicherung @briem[S.~18].
+Die *Domain-Schicht* bildet den innersten Kern mit den zentralen Geschäftsobjekten und organisationsweit gültigen Geschäftsregeln @briem[S.~18--19]. Sie ist vollständig unberührt von Änderungen an Infrastrukturdetails wie der @GUI, dem Daten-Transport oder der Persistenz @briem[S.~18].
 
-Die *Application-Schicht* enthält die anwendungsspezifischen Anwendungsfälle (Use Cases) und implementiert Regeln, die nur für den konkreten Anwendungsfall gelten @briem[S.~23--24]. Sie ist isoliert von Änderungen an Datenbank oder Benutzeroberfläche @briem[S.~25].
+Die *Application-Schicht* enthält die anwendungsspezifischen Anwendungsfälle (Use Cases) und implementiert Regeln, die nur für den konkreten Anwendungsfall gelten @briem[S.~23--24]. Sie ist ebenso isoliert von Änderungen an der Persistenz oder der @GUI @briem[S.~25].
 
-Die *Adapter-Schicht* vermittelt zwischen Anwendungslogik und Außenwelt durch Formatkonvertierungen @briem[S.~30]. Ihr Ziel ist die vollständige Entkopplung von innen und außen — kein SQL in der Anwendung selbst, keine Renderlogik im Kern @briem[S.~31].
+Die *Adapter-Schicht* vermittelt zwischen Anwendungslogik und Außenwelt durch Formatkonvertierungen @briem[S.~30]. Ihr Ziel ist die vollständige Entkopplung von innen und außen. Dadurch wird ermöglicht, dass beispielsweise kein @SQL:short\-Code in der Anwendung selbst oder keine Renderlogik der @GUI im Kern vorhanden ist @briem[S.~31].
 
-Die *Plugin-Schicht* ist die äußerste Schicht mit Frameworks, Datenbank, Web und Benutzeroberfläche @briem[S.~37]. Sie soll ausschließlich Delegationscode enthalten und darf keine Anwendungslogik enthalten — alle Entscheidungen sollen bereits in den inneren Schichten gefallen sein @briem[S.~37--38]. Während Domain-Code Jahrzehnte Bestand haben kann, veralten Plugin-Code und Frameworks mitunter innerhalb von Wochen bis Monaten @briem[S.~50].
+Die *Plugin-Schicht* ist die äußerste Schicht mit Frameworks, Persistenz, Web und @GUI @briem[S.~37]. Sie soll ausschließlich Delegationscode enthalten und darf keine Anwendungslogik enthalten. Alle Entscheidungen sollen bereits in den inneren Schichten gefallen sein @briem[S.~37--38]. Während Domain-Code Jahrzehnte Bestand haben soll, veralten Plugin-Code und Frameworks mitunter innerhalb von Wochen bis Monaten @briem[S.~50].
 
 === Innere Schichten definieren Interfaces
 
-Ein wesentliches Umsetzungsmittel der Dependency Rule ist die konsequente Nutzung von Interfaces: Innere Schichten definieren Schnittstellen, äußere Schichten implementieren diese @briem[S.~16]. So kann die Domain-Schicht ein `Repository`-Interface definieren, ohne zu wissen, ob die konkrete Implementierung eine Datei, eine relationale Datenbank oder einen Webservice verwendet. Dieses als Dependency Inversion Principle bekannte Muster ist eine der tragenden Säulen der Clean Architecture @martin[S.~91].
+Ein wesentliches Umsetzungsmittel der Dependency Rule ist die konsequente Nutzung von Interfaces. Innere Schichten definieren Schnittstellen, äußere Schichten implementieren diese @briem[S.~16]. So kann die Domain-Schicht ein `Repository`-Interface definieren, ohne zu wissen, ob die konkrete Implementierung eine Datei, eine relationale Datenbank oder einen Webservice verwendet. Dieses als Dependency Inversion Principle bekannte Muster ist einer der zentralen Aspekte der Clean Architecture @martin[S.~91].
 
 == Softwarequalität nach ISO/IEC 25010
 
-ISO/IEC 25010 ist der internationale Standard zur Beschreibung und Bewertung von Softwarequalität. Er definiert ein hierarchisches Qualitätsmodell, das Qualitätsmerkmale in Hauptmerkmale und Teilmerkmale untergliedert @iso25010[Abschn.~4.2]. Als Bewertungsmaßstab für diese Arbeit sind zwei Teilmerkmale des Hauptmerkmals *Maintainability* (Wartbarkeit) relevant.
+@ISO 25010 ist der internationale Standard zur Beschreibung und Bewertung von Softwarequalität. Er definiert ein hierarchisches Qualitätsmodell, das Qualitätsmerkmale in Hauptmerkmale und Teilmerkmale untergliedert @iso25010[Abschn.~4.2]. Als Bewertungsmaßstab für diese Arbeit sind zwei Teilmerkmale des Hauptmerkmals *Maintainability* (Wartbarkeit) relevant.
 
-*Modularity* beschreibt den Grad, zu dem ein System aus voneinander unabhängigen Komponenten besteht, sodass eine Änderung an einer Komponente möglichst geringe Auswirkungen auf andere hat @iso25010[Abschn.~4.2.7.1].
+*Modularity* beschreibt den Grad, zu dem ein System aus voneinander unabhängigen Komponenten besteht, sodass eine Änderung an einer Komponente möglichst geringe Auswirkungen auf andere Komponenten hat @iso25010[Abschn.~4.2.7.1].
 
-*Modifiability* beschreibt den Grad, zu dem ein System effektiv und effizient verändert werden kann, ohne dabei unbeabsichtigte Seiteneffekte in anderen Teilen zu erzeugen @iso25010[Abschn.~4.2.7.3]. Ein System mit schlechter Modularität erschwert gezielte Modifikationen, da Änderungen unkontrolliert ausstrahlen.
+*Modifiability* beschreibt den Grad, zu dem ein System effektiv und effizient verändert werden kann, ohne dabei unbeabsichtigte Seiteneffekte in anderen Teilen der Anwendung zu erzeugen @iso25010[Abschn.~4.2.7.3]. Ein System mit schlechter Modularität erschwert gezielte Modifikationen, da Änderungen unkontrolliert ausstrahlen können.
 
-Beide Teilmerkmale sind unmittelbar mit dem Anspruch der Clean Architecture verknüpft: Die Dependency Rule und die daraus resultierende Schichtentrennung sind präzise darauf ausgelegt, Modularity und Modifiability zu maximieren. Die Clean Architecture liefert damit nicht nur ein Designprinzip, sondern zugleich den Maßstab, an dem ihre eigene Umsetzung gemessen werden kann.
+Beide Teilmerkmale sind unmittelbar mit dem Anspruch der Clean Architecture verknüpft: Die Dependency Rule und die daraus resultierende Schichtentrennung sind präzise darauf ausgelegt, Modularity und Modifiability zu maximieren. Die Clean Architecture liefert damit nicht nur ein Designprinzip, sondern zugleich den Maßstab, an dem ihre Umsetzung gemessen werden kann.
 
 = Betrachtung des Projekts
 

@@ -44,4 +44,24 @@
     short: "REST",
     long: "Representational State Transfer",
   ),
+  (
+    key: "FMEA",
+    short: "FMEA",
+    long: "Fehler-Möglichkeits- und Einfluss-Analyse",
+  ),
+  (
+    key: "RPZ",
+    short: "RPZ",
+    long: "Risikoprioritätszahl",
+  ),
+  (
+    key: "PDCA",
+    short: "PDCA",
+    long: "Plan, Do, Check, Act",
+  ),
+  (
+    key: "CI",
+    short: "CI",
+    long: "Continuous Integration",
+  ),
 )

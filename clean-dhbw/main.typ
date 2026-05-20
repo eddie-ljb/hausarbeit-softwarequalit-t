@@ -89,15 +89,15 @@ Dieses Kapitel beschreibt den Gesamtaufbau des Sportwettbewerbs-Managementtools 
 
 == Architekturaufbau des Projekts
 
-Das Backend des Projekts ist als Maven-Multi-Modul-Projekt organisiert und folgt dem in Kapitel 2 beschriebenen Schichtenmodell. Die vier Module sind entsprechend ihrer Schicht benannt: `3_domain`, `2_application`, `1_adapter` und `0_plugins`. Diese Nummerierung spiegelt die Abhängigkeitsrichtung wider und entspricht der Empfehlung von Briem, Schichten als separate Projekte umzusetzen, sodass der Compiler unzulässige Abhängigkeiten verhindert @briem[S.~44].
+Das Backend des Projekts ist als Maven-Multi-Modul-Projekt organisiert und folgt dem in Kapitel 2 beschriebenen Schichtenmodell. Die vier Module sind entsprechend ihrer Schicht benannt: `3_domain`, `2_application`, `1_adapter` und `0_plugins`. Die Plugins wiederum sind wieder in weitere Module unterteilt, sodass diese einfach ausgetauscht werden können. Diese Nummerierung spiegelt die Abhängigkeitsrichtung wider und entspricht der Empfehlung des @ASE\-Dozenten Lars Briem, Schichten als separate Projekte umzusetzen, sodass der Compiler unzulässige Abhängigkeiten verhindert @briem[S.~44].
 
 Die *Domain-Schicht* (`3_domain`) enthält die zentralen Geschäftsobjekte `Competition`, `Match`, `Standings`, `Team`, `Person` und ihre Subtypen, `Ticket` sowie `Siteplan`. Zu jedem Aggregat existiert ein Repository-Interface in der Domain-Schicht. Die Domain-Schicht enthält keinerlei Framework-Imports, was der Grundregel der Clean Architecture entspricht @briem[S.~16].
 
-Die *Application-Schicht* (`2_application`) enthält für jeden fachlichen Bereich einen Service sowie die zugehörigen UseCase-Interfaces — etwa `CreateCompetitionUseCase` und `GetStandingsUseCase`. Alle UseCases kommunizieren ausschließlich über Command-Objekte und DTOs mit den äußeren Schichten.
+Die *Application-Schicht* (`2_application`) enthält für jeden fachlichen Bereich einen Service sowie die zugehörigen UseCase-Interfaces, darunter beispielsweise `CreateCompetitionUseCase` und `GetStandingsUseCase`. Alle UseCases kommunizieren ausschließlich über Command-Objekte und @DTO:pl mit den äußeren Schichten.
 
-Die *Adapter-Schicht* (`1_adapter`) enthält Mapper-Klassen, die zwischen Domain-Objekten und Persistenz-DTOs übersetzen. Diese Schicht hat keine Kenntnis von HTTP, REST oder Spring.
+Die *Adapter-Schicht* (`1_adapter`) enthält Mapper-Klassen, die zwischen Domain-Objekten und Persistenz-@DTO:pl übersetzen. Diese Schicht hat keine Kenntnis von @HTTP:short, @REST:short oder Spring.
 
-Die *Plugin-Schicht* (`0_plugins`) gliedert sich in `plugin_rest` mit den REST-Controllern und `plugin_io` mit den dateibasierten Repository-Implementierungen. Letztere implementieren jeweils das in der Domain-Schicht definierte Repository-Interface und erfüllen damit das Dependency-Inversion-Prinzip korrekt @briem[S.~16].
+Die *Plugin-Schicht* (`0_plugins`) gliedert sich in `plugin_rest` mit den @REST\-Controllern und `plugin_io` mit der dateibasierten Persistenz. Letztere implementiert jeweils die in der Domain-Schicht definierten Repository-Interfaces und erfüllen damit das Dependency-Inversion-Prinzip @briem[S.~16].
 
 == Korrekte Umsetzung im Überblick
 
@@ -105,23 +105,37 @@ In weiten Teilen des Projekts ist die Clean Architecture konsequent umgesetzt. D
 
 == Strukturelle Abweichungen
 
-Neben diesen gelungenen Aspekten finden sich im Projekt zwei strukturelle Abweichungen von der Clean Architecture, die für die Bewertung nach ISO/IEC 25010 relevant sind.
+Neben diesen gelungenen Aspekten finden sich im Projekt zwei strukturelle Abweichungen von der Clean Architecture, die für die Bewertung nach @ISO 25010 relevant sind.
 
 === Direkter Repository-Zugriff in der Plugin-Schicht
 
 Der `CompetitionController` hält als Instanzvariable nicht nur die UseCase-Interfaces `CreateCompetitionUseCase` und `GetStandingsUseCase`, sondern zusätzlich eine direkte Referenz auf `CompetitionRepository`. Von den sieben Endpunkten des Controllers umgehen fünf die Application-Schicht vollständig:
 
-- `GET /getById` → `competitionRepository.findCompetitionById(id)`
-- `GET /getMatchesByCompetitionId` → `competitionRepository.getAllMatchesFromCompetitionId(id)`
-- `GET /getMatchById` → `competitionRepository.findMatchById(id)`
-- `GET /getCompetitionByCompetitionName` → `competitionRepository.getCompetitionByName(name)`
-- `POST /registerMatchResults` → `competitionRepository.registerResultsForMatchByID(...)`
+- `GET /getById`: 
+  - Holt die Wettbewerbs-Instanz über ihre ID
+  - → `competitionRepository.findCompetitionById(id)`
 
-Lediglich `GET /getStandingsFromCompetition` und `POST /create` nutzen den vorgesehenen Weg über UseCase-Interfaces. Die Plugin-Schicht greift damit für den Großteil ihrer Operationen direkt auf die Domain-Schicht zu — eine Verletzung der Dependency Rule @briem[S.~37]. Das Muster findet sich auch im `PersonController` und `TicketController` (je ein Lesezugriff), ist jedoch im `CompetitionController` am ausgeprägtesten.
+- `GET /getMatchesByCompetitionId`
+  - Holt alle Partien, welche während eines Wettbewerbs durchgeführt werden
+  - → `competitionRepository.getAllMatchesFromCompetitionId(id)`
+
+- `GET /getMatchById`
+  - Holt eine Partie-Instanz über ihre ID
+  - → `competitionRepository.findMatchById(id)`
+
+- `GET /getCompetitionByCompetitionName`
+  - Holt den Wettbewerb basierend auf dessen Namen
+  - → `competitionRepository.getCompetitionByName(name)`
+
+- `POST /registerMatchResults`
+  - Speichert/Registriert Ergebnisse zu einer Partie
+  - → `competitionRepository.registerResultsForMatchByID(...)`
+
+Lediglich `GET /getStandingsFromCompetition` und `POST /create` nutzen den vorgesehenen Weg über UseCase-Interfaces. Die Plugin-Schicht greift damit für den Großteil ihrer Operationen direkt auf die Domain-Schicht zu, was eine Verletzung der Dependency Rule darstellt @briem[S.~37]. Das Muster findet sich auch im `PersonController` und `TicketController` (je ein Lesezugriff), ist jedoch im `CompetitionController` am deutlichsten.
 
 === Framework-Abhängigkeit in der Application-Schicht
 
-Die `pom.xml` der Application-Schicht deklariert `spring-boot-starter-web` als Compile-Zeit-Abhängigkeit. Dies hat zur Folge, dass alle fünf Service-Klassen die Spring-Annotation `@Service` tragen. Frameworks sind jedoch Details, die als Plugins an den Rand der Anwendung gehören — Abhängigkeiten vom Anwendungscode in das Framework zeigen in die falsche Richtung @briem[S.~58--59]. Die Application-Schicht kann damit nicht mehr unabhängig von Spring kompiliert oder getestet werden, was einem der Grundziele der Clean Architecture widerspricht @briem[S.~16].
+Die `pom.xml` der Application-Schicht deklariert `spring-boot-starter-web` als Compile-Zeit-Abhängigkeit. Dies hat zur Folge, dass alle fünf Service-Klassen die Spring-Annotation `@Service` tragen. Frameworks sind jedoch Details, die als Plugins an den Rand der Anwendung (Plugin Layer) gehören. Dadurch zeigen Abhängigkeiten vom Anwendungscode in das Framework, also in die falsche Richtung @briem[S.~58--59]. Die Application-Schicht kann damit nicht mehr unabhängig von Spring kompiliert oder getestet werden, was einem der Grundziele der Clean Architecture widerspricht @briem[S.~16].
 
 = Analyse und Bewertung
 

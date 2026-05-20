@@ -29,4 +29,19 @@
     short: "SQL",
     long: "Structured Query Language",
   ),
+  (
+    key: "ASE",
+    short: "ASE",
+    long: "Advanced Software Engineering",
+  ),
+  (
+    key: "DTO",
+    short: "DTO",
+    long: "Data Transfer Object",
+  ),
+  (
+    key: "REST",
+    short: "REST",
+    long: "Representational State Transfer",
+  ),
 )

@@ -37,7 +37,7 @@ Ein zentrales Merkmal des Projekts ist die bewusste Vorgabe, Clean Architecture 
 
 == Ziel der Arbeit
 
-Im Mittelpunkt dieser Hausarbeit steht die Frage, inwieweit die gewählte Architektur im Sinne des Softwarequalitätsmanagements tatsächlich konsequent umgesetzt wurde. Als Bewertungsmaßstab dienen zwei Teilmerkmale des Qualitätsmerkmals Maintainability aus dem internationalen Standard @ISO:short 25010: Modularity und Modifiability. Modularity beschreibt, in welchem Maße ein System aus unabhängigen Komponenten besteht, sodass Änderungen an einer Komponente möglichst geringe Auswirkungen auf andere haben. Modifiability hingegen beschreibt, wie effektiv das System verändert werden kann, ohne dabei unbeabsichtigte Seiteneffekte in anderen Teilen der Anwendung zu erzeugen.
+Im Mittelpunkt dieser Hausarbeit steht die Frage, inwieweit die gewählte Architektur im Sinne des @SQM:pl tatsächlich konsequent umgesetzt wurde. Als Bewertungsmaßstab dienen zwei Teilmerkmale des Qualitätsmerkmals Maintainability aus dem internationalen Standard @ISO:short 25010: Modularity und Modifiability. Modularity beschreibt, in welchem Maße ein System aus unabhängigen Komponenten besteht, sodass Änderungen an einer Komponente möglichst geringe Auswirkungen auf andere haben. Modifiability hingegen beschreibt, wie effektiv das System verändert werden kann, ohne dabei unbeabsichtigte Seiteneffekte in anderen Teilen der Anwendung zu erzeugen.
 
 Beide Teilmerkmale sind unmittelbar mit dem Anspruch der Clean Architecture verknüpft und eignen sich daher als konkreter, messbarer Maßstab zur Bewertung ihrer Umsetzung. Die Analyse konzentriert sich auf den `CompetitionController` als repräsentatives Fallbeispiel, an dem sich eine systematische Analyse der vorgebenen Architektur besonders gut eignet. Daraus werden anschließend begründete Optimierungsmaßnahmen abgeleitet.
 
@@ -47,7 +47,7 @@ Beide Teilmerkmale sind unmittelbar mit dem Anspruch der Clean Architecture verk
 
 === Motivation und Ziel
 
-Moderne Softwaresysteme unterliegen einem ständigen Wandel. Technologien, Frameworks und Abhängigkeiten veralten, werden ersetzt oder weiterentwickelt — häufig innerhalb weniger Jahre @briem[S.~2]. Eine Architektur, die eng an konkrete Technologien geknüpft ist, altert zwangsläufig mit diesen zusammen und erschwert spätere Anpassungen erheblich.
+Moderne Softwaresysteme unterliegen einem ständigen Wandel. Technologien, Frameworks und Abhängigkeiten veralten, werden ersetzt oder weiterentwickelt, häufig innerhalb weniger Jahre @briem[S.~2]. Eine Architektur, die eng an konkrete Technologien geknüpft ist, altert zwangsläufig mit diesen zusammen und erschwert spätere Anpassungen erheblich.
 
 Die Clean Architecture begegnet diesem Problem durch eine klare strukturelle Trennung von langlebigem und kurzlebigem Code. Ihr zentrales Ziel ist es, einen technologieunabhängigen Kern zu schaffen und alle technischen Details, wie Datenbanken, Frameworks oder Benutzeroberflächen, als austauschbare Randkomponenten zu behandeln @briem[S.~9]. Das angestrebte Ergebnis ist ein System, in dem Technologieentscheidungen spät getroffen oder nachträglich revidiert werden können, ohne den Anwendungskern zu berühren @briem[S.~8]. Robert C. Martin fasst dies so zusammen: Eine gute Architektur maximiert die Anzahl der Entscheidungen, die noch nicht getroffen werden müssen @martin[S.~141].
 
@@ -281,4 +281,4 @@ Die Analyse zeigt ein zweigeteiltes Bild. Im Kern in der Domain- und Adapter-Sch
 
 Die erarbeiteten Optimierungsmaßnahmen, darunter die Einführung fehlender UseCase-Interfaces und Verlagerung der Spring-Konfiguration in die Plugin-Schicht, sind gezielt und mit überschaubarem Aufwand umsetzbar. Durch automatisierte Architekturprüfung mittels ArchUnit schaffen sie zudem eine nachhaltige Absicherung gegen künftige Regressionen.
 
-Das Fallbeispiel illustriert ein in der Praxis häufiges Muster: Eine Architekturentscheidung wird konzeptionell korrekt getroffen, in der Umsetzung jedoch unter Zeitdruck oder andere äußere Einflüsse nicht konsequent durchgehalten. Genau hier setzt Softwarequalitätsmanagement an und dient als Instrument, um solche Abweichungen systematisch zu identifizieren, zu bewerten und dauerhaft zu beheben @kube[S.~5].
+Das Fallbeispiel illustriert ein in der Praxis häufiges Muster: Eine Architekturentscheidung wird konzeptionell korrekt getroffen, in der Umsetzung jedoch unter Zeitdruck oder andere äußere Einflüsse nicht konsequent durchgehalten. Genau hier setzt @SQM an und dient als Instrument, um solche Abweichungen systematisch zu identifizieren, zu bewerten und dauerhaft zu beheben @kube[S.~5].

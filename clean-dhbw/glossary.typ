@@ -64,4 +64,9 @@
     short: "CI",
     long: "Continuous Integration",
   ),
+  (
+    key: "SQM",
+    short: "SQM",
+    long: "Softwarequalitätsmanagement",
+  ),
 )
